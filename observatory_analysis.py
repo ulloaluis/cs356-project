@@ -1,3 +1,5 @@
+import json
+
 from observatory_constants import *
 from scipy import stats
 
@@ -9,9 +11,19 @@ def spearman_correlation_analysis(results):
     for a particular group.
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.spearmanr.html
     """
-    print("Spearman Correlation Analysis: Trancos Rank vs Observatory Score")
+    ranks, scores = [], []
+    for domain, result in results.items():
+        if len(result["observatory_result"]) == 0:
+            # print(f"Domain \'{domain}\' has no observatory data, skipping...")
+            continue
+        ranks.append(result["trancos_rank"])
+        scores.append(result["observatory_result"]["score"])
+    
+    print(f"{len(scores)} out of {len(results)} sites have valid observatory data.")
 
-    for domain, result in results:
+    spearman_result = stats.spearmanr(ranks, scores)
+    print(spearman_result)
+    print("-"*50, "\n")
 
 
 
@@ -27,8 +39,8 @@ def get_results(filename):
 
 
 if __name__ == "__main__":
-    top_results = get_results(TOP_RESULTS_FILENAME)
-    longtail_results = get_results(LONGTAIL_RESULTS_FILENAME)
+    top_results = get_results(TOP_RESULTS_FILE)
+    longtail_results = get_results(LONGTAIL_RESULTS_FILE)
 
     print("Spearman Correlation Analysis: Top Sites")
     spearman_correlation_analysis(top_results)

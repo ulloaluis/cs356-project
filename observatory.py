@@ -137,15 +137,11 @@ if __name__ == "__main__":
 
     print(f"Processing top sites group results...")
     top_results = process_group_results(top_group)
-    overwrite_file(
-        top_results,
-        os.path.join(RESULTS_DIRECTORY, TOP_RESULTS_FILENAME))
+    overwrite_file(top_results, TOP_RESULTS_FILE)
     print('\n', "-"*30,)
 
     print(f"Processing longtail sites group results...")
     longtail_results = process_group_results(longtail_group)
-    overwrite_file(
-        longtail_results,
-        os.path.join(RESULTS_DIRECTORY, LONGTAIL_RESULTS_FILENAME))
+    overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
     print('\n', "-"*30,)
 
