@@ -127,7 +127,7 @@ if __name__ == "__main__":
         .sample(n=SAMPLE_SIZE, random_state=rng)
         .reset_index(drop=True)
     )
-    # initiate_group_scan(top_group)
+    initiate_group_scan(top_group)
     print('\n', "-"*30,)
 
     print(f"Initiating longtail sites group scan...")
@@ -136,11 +136,11 @@ if __name__ == "__main__":
         .sample(n=SAMPLE_SIZE, random_state=rng)
         .reset_index(drop=True)
     )
-    # initiate_group_scan(longtail_group)
+    initiate_group_scan(longtail_group)
     print('\n', "-"*30,)
 
     print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
-    # time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
+    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing top sites group results...")
     top_results = process_group_results(top_group)
