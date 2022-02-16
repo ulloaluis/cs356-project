@@ -26,7 +26,6 @@ def spearman_correlation_analysis(results):
     print("-"*50, "\n")
 
 
-
 def merge_dicts(d1, d2):
     merged = d1.copy()
     merged.update(d2)
@@ -48,4 +47,3 @@ if __name__ == "__main__":
     spearman_correlation_analysis(longtail_results)
     print("Spearman Correlation Analysis: Top & Longtail Sites Merged")
     spearman_correlation_analysis(merge_dicts(top_results, longtail_results))
-

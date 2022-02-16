@@ -144,4 +144,3 @@ if __name__ == "__main__":
     longtail_results = process_group_results(longtail_group)
     overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
     print('\n', "-"*30,)
-
