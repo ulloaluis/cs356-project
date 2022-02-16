@@ -1,8 +1,18 @@
+"""
+Uses the Mozilla Observatory API to get security scans on a sample
+of the top sites (top 10,000) and longtail sites (everything else)
+in the Trancos Top 1M dataset.
+
+
+Note that calling initiate_domain_scan() only has to happen once for a domain
+in the past 24 hours in order for get_scan_result() to return a value. Common
+error cases are when the site is down for maintenance when the scan was requested.
+"""
 import json
+import os
 import requests
 import time
 import traceback
-import os
 
 import numpy as np
 import pandas as pd
@@ -51,6 +61,7 @@ def get_scan_result(domain):
             print(f"Error polling {domain}, retrying...")
             traceback.print_exc()
         time.sleep(0.5)  # Wait before retry if error or not finished yet
+
 
 def process_group_results(group):
     """
