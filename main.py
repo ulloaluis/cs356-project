@@ -36,11 +36,15 @@ def get_scan_result(domain):
             resp = requests.get(f"{OBSERVATORY_URL}/analyze", params={"host": domain})
             resp.raise_for_status()
             parsed = resp.json()
-            if parsed["state"] == "FINISHED":
+            if "state" in parsed and parsed["state"] == "FINISHED":
                 return parsed
-            elif parsed["state"] in ["ABORTED", "FAILED"]:
+            elif "state" in parsed and parsed["state"] in ["ABORTED", "FAILED"]:
                 print(f"Scan failed for {domain}")
-                print(resp.text)
+                print(f"Response: {resp.text}")
+                return {}
+            else:
+                print(f"Scan failed for {domain}")
+                print(f"Response json: {parsed}")
                 return {}
         except requests.HTTPError:
             # Report errors and try again
@@ -112,7 +116,7 @@ if __name__ == "__main__":
         .sample(n=SAMPLE_SIZE, random_state=rng)
         .reset_index(drop=True)
     )
-    initiate_group_scan(top_group)
+    # initiate_group_scan(top_group)
     print('\n', "-"*30,)
 
     print(f"Initiating longtail sites group scan...")
@@ -121,11 +125,11 @@ if __name__ == "__main__":
         .sample(n=SAMPLE_SIZE, random_state=rng)
         .reset_index(drop=True)
     )
-    initiate_group_scan(longtail_group)
+    # initiate_group_scan(longtail_group)
     print('\n', "-"*30,)
 
     print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
-    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
+    # time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing top sites group results...")
     top_results = process_group_results(top_group)
