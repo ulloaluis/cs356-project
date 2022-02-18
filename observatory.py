@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from io import TextIOWrapper
-from observatory_constants import *
+from observatory_config import *
 from zipfile import ZipFile
 
 
@@ -27,6 +27,7 @@ rng = np.random.default_rng(seed=12345)
 
 
 def overwrite_file(results, filename):
+    # Note: directory must already exist!
     print("Writing to file:", filename)
     with open(filename, 'w+') as f:
         json.dump(results, f)
@@ -103,6 +104,61 @@ def get_sites():
     return sites
 
 
+def popular_vs_longtail_data_collection(sites):
+    print(f"Initiating top sites group scan...")
+    top_group = (
+        sites.query("ranking <= 10_000")
+        .sample(n=SAMPLE_SIZE, random_state=rng)
+        .reset_index(drop=True)
+    )
+    initiate_group_scan(top_group)
+    print('\n', "-"*30)
+
+    print(f"Initiating longtail sites group scan...")
+    longtail_group = (
+        sites.query("ranking > 10_000")
+        .sample(n=SAMPLE_SIZE, random_state=rng)
+        .reset_index(drop=True)
+    )
+    initiate_group_scan(longtail_group)
+    print('\n', "-"*30)
+
+    print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
+    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
+
+    print(f"Processing top sites group results...")
+    top_results = process_group_results(top_group)
+    overwrite_file(top_results, TOP_RESULTS_FILE)
+    print('\n', "-"*30)
+
+    print(f"Processing longtail sites group results...")
+    longtail_results = process_group_results(longtail_group)
+    overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
+    print('\n', "-"*30)
+
+
+def random_subset_data_collection(sites):
+    print(f"Random subset data collection.")
+    print(f"Rank range: [{RANK_RANGE['min']}-{RANK_RANGE['max']}]")
+    print("Initating scan...")
+
+    group = (
+        sites.query(f"ranking >= {RANK_RANGE['min']} & ranking < {RANK_RANGE['max']}")
+        .sample(n=SAMPLE_SIZE, random_state=rng)
+        .reset_index(drop=True)
+    )
+    initiate_group_scan(group)
+    print('\n', "-"*30)
+
+    print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
+    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
+
+    print(f"Processing group results...")
+    results = process_group_results(group)
+    overwrite_file(results, RANDOM_SUBSET_FILE)
+    print('\n', "-"*30)
+
+
 if __name__ == "__main__":
     """
     Since the observatory API requires you to first initiate the scan before
@@ -113,34 +169,8 @@ if __name__ == "__main__":
     then process the results.
     """
     sites = get_sites()
+    if ANALYSIS_TYPE == AnalysisType.POPULAR_VS_LONGTAIL:
+        popular_vs_longtail_data_collection(sites)
+    elif ANALYSIS_TYPE == ANALYSIS_TYPE.RANDOM_SUBSET:
+        random_subset_data_collection(sites)
 
-    print(f"Initiating top sites group scan...")
-    top_group = (
-        sites.query("ranking <= 10_000")
-        .sample(n=SAMPLE_SIZE, random_state=rng)
-        .reset_index(drop=True)
-    )
-    initiate_group_scan(top_group)
-    print('\n', "-"*30,)
-
-    print(f"Initiating longtail sites group scan...")
-    longtail_group = (
-        sites.query("ranking > 10_000")
-        .sample(n=SAMPLE_SIZE, random_state=rng)
-        .reset_index(drop=True)
-    )
-    initiate_group_scan(longtail_group)
-    print('\n', "-"*30,)
-
-    print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
-    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
-
-    print(f"Processing top sites group results...")
-    top_results = process_group_results(top_group)
-    overwrite_file(top_results, TOP_RESULTS_FILE)
-    print('\n', "-"*30,)
-
-    print(f"Processing longtail sites group results...")
-    longtail_results = process_group_results(longtail_group)
-    overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
-    print('\n', "-"*30,)
