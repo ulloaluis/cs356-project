@@ -57,7 +57,7 @@ def get_scan_result(domain):
         time.sleep(0.5)  # Wait before retry if error or not finished yet
 
 
-def process_group_results(group):
+def process_group_results(group, sites):
     """
     Returns: dict in the following format
         dict[domain] = {
@@ -67,14 +67,15 @@ def process_group_results(group):
         }
     """
     group_results = {}
-    for domain in group.domain:
+    for domain in group:
         print(f"Scanning {domain}...")
         result = get_scan_result(domain)
-        sample_row = group.loc[group.domain == domain]
+        sample_row = sites.loc[sites.domain == domain]
         group_results[domain] = {
             "observatory_result" : result,
             "trancos_rank" : int(sample_row.ranking)
         }
+        print(group_results)
     return group_results
 
 
@@ -86,13 +87,44 @@ def initiate_domain_scan(domain):
         params={"host": domain},
         data={"hidden": "true"},
     )
-    resp.raise_for_status()
-    print("***", resp.text)
+    valid = "error" not in resp.json() and resp.status_code == 200
+    if not valid:
+        print(f"...{domain} scan failed.")
+    return valid
 
 
-def initiate_group_scan(group):
-    for domain in group.domain:
-        initiate_domain_scan(domain)
+def sample_n(sites, n, query):
+    return (sites.query(query)
+            .sample(n=n, random_state=rng))
+
+
+def initiate_group_scan(sites, n, query):
+    """
+    Will find `n` valid domains conforming to the constraints specified by
+    `query` in `sites.`
+
+    It is possible for a domain to be invalid (or for a site to be down at
+    time of scan). We can use scan initiation to check this condition and
+    re-sample a site if it's invalid.
+    """
+    valid_domains = []
+    while (len(valid_domains) < n):
+        group = sample_n(sites, n - len(valid_domains), query)
+        # Drop group from sites to prevent resampling domains.
+        sites = sites.drop(group.index)
+
+        if len(group) == 0:
+            print(f"WARNING: ran out of domains to sample. got {len(valid_domains)} out of {n}")
+            return valid_domains
+
+        for domain in group.domain:
+            is_valid_domain = initiate_domain_scan(domain)
+            if is_valid_domain:
+                valid_domains.append(domain)
+            # else: domain is invalid and gets excluded
+
+    print(f"{n} wanted, got {len(valid_domains)}")
+    return valid_domains
 
 
 def get_sites():
@@ -106,33 +138,23 @@ def get_sites():
 
 def popular_vs_longtail_data_collection(sites):
     print(f"Initiating top sites group scan...")
-    top_group = (
-        sites.query("ranking <= 10_000")
-        .sample(n=SAMPLE_SIZE, random_state=rng)
-        .reset_index(drop=True)
-    )
-    initiate_group_scan(top_group)
+    top_group = initiate_group_scan(sites, SAMPLE_SIZE, "ranking <= 10_000")
     print('\n', "-"*30)
 
     print(f"Initiating longtail sites group scan...")
-    longtail_group = (
-        sites.query("ranking > 10_000")
-        .sample(n=SAMPLE_SIZE, random_state=rng)
-        .reset_index(drop=True)
-    )
-    initiate_group_scan(longtail_group)
+    longtail_group = initiate_group_scan(sites, SAMPLE_SIZE, "ranking > 10_000")
     print('\n', "-"*30)
 
     print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing top sites group results...")
-    top_results = process_group_results(top_group)
+    top_results = process_group_results(top_group, sites)
     overwrite_file(top_results, TOP_RESULTS_FILE)
     print('\n', "-"*30)
 
     print(f"Processing longtail sites group results...")
-    longtail_results = process_group_results(longtail_group)
+    longtail_results = process_group_results(longtail_group, sites)
     overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
     print('\n', "-"*30)
 
@@ -142,35 +164,31 @@ def random_subset_data_collection(sites):
     print(f"Rank range: [{RANK_RANGE['min']}-{RANK_RANGE['max']}]")
     print("Initating scan...")
 
-    group = (
-        sites.query(f"ranking >= {RANK_RANGE['min']} & ranking < {RANK_RANGE['max']}")
-        .sample(n=SAMPLE_SIZE, random_state=rng)
-        .reset_index(drop=True)
+    group = initiate_group_scan(
+        sites, SAMPLE_SIZE,
+        f"ranking >= {RANK_RANGE['min']} & ranking < {RANK_RANGE['max']}"
     )
-    initiate_group_scan(group)
     print('\n', "-"*30)
 
     print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing group results...")
-    results = process_group_results(group)
+    results = process_group_results(group, sites)
     overwrite_file(results, RANDOM_SUBSET_FILE)
     print('\n', "-"*30)
 
 
 if __name__ == "__main__":
     """
+    Initiates group scans, waits for some time, and then processes the results.
+
     Since the observatory API requires you to first initiate the scan before
     then retrieving the results, this is designed to initiate as many scans
     as possible before attempting to retrieve any results.
-
-    Initiates top group scans and longtail scans, wait for some time, and
-    then process the results.
     """
     sites = get_sites()
     if ANALYSIS_TYPE == AnalysisType.POPULAR_VS_LONGTAIL:
         popular_vs_longtail_data_collection(sites)
     elif ANALYSIS_TYPE == ANALYSIS_TYPE.RANDOM_SUBSET:
         random_subset_data_collection(sites)
-

@@ -10,11 +10,11 @@ class AnalysisType(Enum):
 
 # Used by all analysis types
 OBSERVATORY_URL = "https://http-observatory.security.mozilla.org/api/v1"
-RESULTS_DIRECTORY = f"{os.getcwd()}/subset_results_sample_1000_from_top_1000000"
-PROCESS_RESULTS_DELAY_SECONDS = 60
+RESULTS_DIRECTORY = f"{os.getcwd()}/test"
+PROCESS_RESULTS_DELAY_SECONDS = 45
 
 # Used by POPULAR_VS_LONGTAIL analysis
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 500
 TOP_RESULTS_FILE = os.path.join(RESULTS_DIRECTORY, "top_sites_results.json")
 LONGTAIL_RESULTS_FILE = os.path.join(RESULTS_DIRECTORY, "longtail_sites_results.json")
 
