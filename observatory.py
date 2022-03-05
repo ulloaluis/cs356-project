@@ -33,9 +33,36 @@ def overwrite_file(results, filename):
         json.dump(results, f)
 
 
-def get_scan_result(domain):
-    """Returns the json result from scanning the domain, or empty dict if the scan failed."""
+def get_test_scan_results(domain, scan_id):
+    """Returns json from scanning tests endpoint, or None if the scan failed."""
+    max_retry = 5
     while True:
+        max_retry -= 1
+        if max_retry <= 0:
+            return None
+        try:
+            resp = requests.get(f"{OBSERVATORY_URL}/getScanResults", params={"scan": scan_id})
+            resp.raise_for_status()
+            if "error" in resp.json() or resp.status_code != 200:
+                time.sleep(0.5)
+                continue
+            results = resp.json()
+            return results
+        except requests.HTTPError:
+            # Report errors and try again
+            print(f"Error polling {domain} (scan: {scan_id}), retrying...")
+            traceback.print_exc()
+            time.sleep(0.5)  # Wait before retry if error or not finished yet
+
+
+def get_analyze_scan_results(domain):
+    """Returns the json result from scanning the domain, or None if the scan failed."""
+    max_retry = 5
+    while True:
+        max_retry -= 1
+        if max_retry <= 0:
+            return None
+
         try:
             resp = requests.get(f"{OBSERVATORY_URL}/analyze", params={"host": domain})
             resp.raise_for_status()
@@ -43,39 +70,48 @@ def get_scan_result(domain):
             if "state" in parsed and parsed["state"] == "FINISHED":
                 return parsed
             elif "state" in parsed and parsed["state"] in ["ABORTED", "FAILED"]:
-                print(f"Scan failed for {domain}")
-                print(f"Response: {resp.text}")
-                return {}
+                time.sleep(0.5)
+                continue
             else:
-                print(f"Scan failed for {domain}")
-                print(f"Response json: {parsed}")
-                return {}
+                time.sleep(0.5)
+                continue
         except requests.HTTPError:
             # Report errors and try again
             print(f"Error polling {domain}, retrying...")
             traceback.print_exc()
-        time.sleep(0.5)  # Wait before retry if error or not finished yet
+            time.sleep(0.5)  # Wait before retry if error or not finished yet
 
 
-def process_group_results(sites, group):
+def retrieve_group_data(sites, group):
     """
     Returns: dict in the following format
         dict[domain] = {
             trancos_rank = /* trancos rank on site */
-            observatory_result = /* entire json/dict returned from observatory scan,
-                                     dict[observatory_result][score] for observatory score */
+            observatory_assessment = /* entire json/dict returned from observatory assessment scan,
+                                     dict[observatory_assessment][score] for observatory score */
+            observatory_tests = /* json/dict returned from observatory tests scan */
         }
     """
     group_results = {}
     for domain in group:
         print(f"Scanning {domain}...")
-        result = get_scan_result(domain)
+        assessment = get_analyze_scan_results(domain)
+        if assessment != None:
+            tests = get_test_scan_results(domain, assessment["scan_id"])
+        else:
+            print(f"WARNING: {domain} failed assessment scan. Skipping...")
+            continue
+
+        if tests == None:
+            print(f"WARNING: {domain} failed tests retrieval scan. Skipping...")
+            continue
+
         sample_row = sites.loc[sites.domain == domain]
         group_results[domain] = {
-            "observatory_result" : result,
+            "observatory_assessment" : assessment,
+            "observatory_tests" : tests,
             "trancos_rank" : int(sample_row.ranking)
         }
-        print(group_results)
     return group_results
 
 
@@ -149,12 +185,12 @@ def popular_vs_longtail_data_collection(sites):
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing top sites group results...")
-    top_results = process_group_results(sites, top_group)
+    top_results = retrieve_group_data(sites, top_group)
     overwrite_file(top_results, TOP_RESULTS_FILE)
     print('\n', "-"*30)
 
     print(f"Processing longtail sites group results...")
-    longtail_results = process_group_results(sites, longtail_group)
+    longtail_results = retrieve_group_data(sites, longtail_group)
     overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
     print('\n', "-"*30)
 
@@ -174,7 +210,7 @@ def random_subset_data_collection(sites):
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing group results...")
-    results = process_group_results(sites, group)
+    results = retrieve_group_data(sites, group)
     overwrite_file(results, RANDOM_SUBSET_FILE)
     print('\n', "-"*30)
 

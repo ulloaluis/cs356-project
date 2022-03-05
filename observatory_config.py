@@ -10,8 +10,8 @@ class AnalysisType(Enum):
 
 # Used by all analysis types
 OBSERVATORY_URL = "https://http-observatory.security.mozilla.org/api/v1"
-RESULTS_DIRECTORY = f"{os.getcwd()}/test"
-PROCESS_RESULTS_DELAY_SECONDS = 45
+RESULTS_DIRECTORY = f"{os.getcwd()}/sample_500"
+PROCESS_RESULTS_DELAY_SECONDS = 60
 
 # Used by POPULAR_VS_LONGTAIL analysis
 SAMPLE_SIZE = 500
@@ -27,4 +27,4 @@ RANDOM_SUBSET_FILE = os.path.join(RESULTS_DIRECTORY, "results.json")
 
 # Specify analysis type for observatory.py (data collection)
 # and observatory_analysis.py  (analysis)
-ANALYSIS_TYPE =  AnalysisType.RANDOM_SUBSET
+ANALYSIS_TYPE =  AnalysisType.POPULAR_VS_LONGTAIL
