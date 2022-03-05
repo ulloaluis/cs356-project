@@ -57,7 +57,7 @@ def get_scan_result(domain):
         time.sleep(0.5)  # Wait before retry if error or not finished yet
 
 
-def process_group_results(group, sites):
+def process_group_results(sites, group):
     """
     Returns: dict in the following format
         dict[domain] = {
@@ -149,12 +149,12 @@ def popular_vs_longtail_data_collection(sites):
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing top sites group results...")
-    top_results = process_group_results(top_group, sites)
+    top_results = process_group_results(sites, top_group)
     overwrite_file(top_results, TOP_RESULTS_FILE)
     print('\n', "-"*30)
 
     print(f"Processing longtail sites group results...")
-    longtail_results = process_group_results(longtail_group, sites)
+    longtail_results = process_group_results(sites, longtail_group)
     overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
     print('\n', "-"*30)
 
@@ -174,7 +174,7 @@ def random_subset_data_collection(sites):
     time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
     print(f"Processing group results...")
-    results = process_group_results(group, sites)
+    results = process_group_results(sites, group)
     overwrite_file(results, RANDOM_SUBSET_FILE)
     print('\n', "-"*30)
 
