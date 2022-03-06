@@ -11,7 +11,7 @@ class AnalysisType(Enum):
 # Used by all analysis types
 OBSERVATORY_URL = "https://http-observatory.security.mozilla.org/api/v1"
 RESULTS_DIRECTORY = f"{os.getcwd()}/sample_500"
-PROCESS_RESULTS_DELAY_SECONDS = 60
+PROCESS_RESULTS_DELAY_SECONDS = 90
 
 # Used by POPULAR_VS_LONGTAIL analysis
 SAMPLE_SIZE = 500

@@ -9,9 +9,9 @@ in the past 24 hours in order for get_scan_result() to return a value. Common
 error cases are when the site is down for maintenance when the scan was requested.
 """
 import json
-import os
 import requests
 import time
+import threading
 import traceback
 
 import numpy as np
@@ -82,7 +82,7 @@ def get_analyze_scan_results(domain):
             time.sleep(0.5)  # Wait before retry if error or not finished yet
 
 
-def retrieve_group_data(sites, group):
+def retrieve_scan_data(sites, domain):
     """
     Returns: dict in the following format
         dict[domain] = {
@@ -92,27 +92,24 @@ def retrieve_group_data(sites, group):
             observatory_tests = /* json/dict returned from observatory tests scan */
         }
     """
-    group_results = {}
-    for domain in group:
-        print(f"Scanning {domain}...")
-        assessment = get_analyze_scan_results(domain)
-        if assessment != None:
-            tests = get_test_scan_results(domain, assessment["scan_id"])
-        else:
-            print(f"WARNING: {domain} failed assessment scan. Skipping...")
-            continue
+    print(f"Scanning {domain}...")
+    assessment = get_analyze_scan_results(domain)
+    if assessment != None:
+        tests = get_test_scan_results(domain, assessment["scan_id"])
+    else:
+        print(f"WARNING: {domain} failed assessment scan. Skipping...")
+        return None
 
-        if tests == None:
-            print(f"WARNING: {domain} failed tests retrieval scan. Skipping...")
-            continue
+    if tests == None:
+        print(f"WARNING: {domain} failed tests retrieval scan. Skipping...")
+        return None
 
-        sample_row = sites.loc[sites.domain == domain]
-        group_results[domain] = {
-            "observatory_assessment" : assessment,
-            "observatory_tests" : tests,
-            "trancos_rank" : int(sample_row.ranking)
-        }
-    return group_results
+    sample_row = sites.loc[sites.domain == domain]
+    return {
+        "observatory_assessment" : assessment,
+        "observatory_tests" : tests,
+        "trancos_rank" : int(sample_row.ranking)
+    }
 
 
 def initiate_domain_scan(domain):
@@ -134,33 +131,54 @@ def sample_n(sites, n, query):
             .sample(n=n, random_state=rng))
 
 
-def initiate_group_scan(sites, n, query):
+def get_observatory_data(sites, n, query, group_results):
     """
     Will find `n` valid domains conforming to the constraints specified by
-    `query` in `sites.`
+    `query` in `sites.
 
-    It is possible for a domain to be invalid (or for a site to be down at
-    time of scan). We can use scan initiation to check this condition and
-    re-sample a site if it's invalid.
+    Returns dict of Observatory data as described in `retrieve_scan_data`
     """
-    valid_domains = []
-    while (len(valid_domains) < n):
-        group = sample_n(sites, n - len(valid_domains), query)
-        # Drop group from sites to prevent resampling domains.
+    print(f"Getting observatory data for `{n}` domains under query `{query}`...")
+    while (len(group_results) < n):
+        # Pessimistically over sample by 30% to avoid long wait times
+        # associated with having to resample after failed connections.
+        sample_size_extra = (n - len(group_results))
+        sample_size_extra += (int)(0.3 * sample_size_extra)
+        group = sample_n(sites, sample_size_extra, query)
+
+        # Drop sampled group from sites to prevent resampling domains.
         sites = sites.drop(group.index)
 
         if len(group) == 0:
-            print(f"WARNING: ran out of domains to sample. got {len(valid_domains)} out of {n}")
-            return valid_domains
+            print(f"WARNING: ran out of domains to sample. got {len(group_results)} out of {n}")
+            exit()
 
+        maybe_valid_domains = []
         for domain in group.domain:
             is_valid_domain = initiate_domain_scan(domain)
             if is_valid_domain:
-                valid_domains.append(domain)
+                maybe_valid_domains.append(domain)
             # else: domain is invalid and gets excluded
+        
+        print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
+        time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
 
-    print(f"{n} wanted, got {len(valid_domains)}")
-    return valid_domains
+        for domain in maybe_valid_domains:
+            # We pass 'groups' instead of 'sites' because 'sites' no longer
+            # contains data for 'groups,' and this method will access trancos
+            # rank associated with the domain.
+            data = retrieve_scan_data(group, domain)
+            if data != None:
+                if len(group_results) == n:
+                    break
+                group_results[domain] = data
+
+    if len(group_results) != n:
+        print(f"ERROR: expected {n} domains got {len(group_results)}") 
+        exit()
+    
+    print(f"...group scan for `{n}` domains with query `{query}` successful.")
+    return group_results
 
 
 def get_sites():
@@ -172,47 +190,54 @@ def get_sites():
     return sites
 
 
+class GetObservatoryDataThread(threading.Thread):
+    def __init__(self, sites, sample_size, query, results):
+        threading.Thread.__init__(self)
+        self.sites = sites
+        self.sample_size = sample_size
+        self.query = query
+        self.results = results
+    
+    def run(self):
+        get_observatory_data(
+            self.sites, self.sample_size, self.query, self.results)
+
+
 def popular_vs_longtail_data_collection(sites):
-    print(f"Initiating top sites group scan...")
-    top_group = initiate_group_scan(sites, SAMPLE_SIZE, "ranking <= 10_000")
-    print('\n', "-"*30)
+    print("Popular vs. Longtail data collection.")
 
-    print(f"Initiating longtail sites group scan...")
-    longtail_group = initiate_group_scan(sites, SAMPLE_SIZE, "ranking > 10_000")
-    print('\n', "-"*30)
+    # Run each group in a separate thread, since there's a lot of idle
+    # waiting associated with Observatory's API.
+    top_results = {}
+    top_group_thread = GetObservatoryDataThread(
+        sites.copy(), SAMPLE_SIZE, "ranking <= 10_000", top_results)
 
-    print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
-    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
+    longtail_results = {}
+    longtail_group_thread = GetObservatoryDataThread(
+        sites.copy(), SAMPLE_SIZE, "ranking > 10_000", longtail_results)
 
-    print(f"Processing top sites group results...")
-    top_results = retrieve_group_data(sites, top_group)
+    top_group_thread.start()
+    longtail_group_thread.start()
+
+    top_group_thread.join()
+    longtail_group_thread.join()
+
     overwrite_file(top_results, TOP_RESULTS_FILE)
-    print('\n', "-"*30)
-
-    print(f"Processing longtail sites group results...")
-    longtail_results = retrieve_group_data(sites, longtail_group)
     overwrite_file(longtail_results, LONGTAIL_RESULTS_FILE)
-    print('\n', "-"*30)
 
 
 def random_subset_data_collection(sites):
     print(f"Random subset data collection.")
     print(f"Rank range: [{RANK_RANGE['min']}-{RANK_RANGE['max']}]")
-    print("Initating scan...")
 
-    group = initiate_group_scan(
-        sites, SAMPLE_SIZE,
-        f"ranking >= {RANK_RANGE['min']} & ranking < {RANK_RANGE['max']}"
+    subset_results = {}
+    get_observatory_data(
+        sites.copy(), SAMPLE_SIZE,
+        f"ranking >= {RANK_RANGE['min']} & ranking < {RANK_RANGE['max']}",
+        subset_results
     )
-    print('\n', "-"*30)
 
-    print(f"Waiting {PROCESS_RESULTS_DELAY_SECONDS} seconds for scans to complete...")
-    time.sleep(PROCESS_RESULTS_DELAY_SECONDS)
-
-    print(f"Processing group results...")
-    results = retrieve_group_data(sites, group)
-    overwrite_file(results, RANDOM_SUBSET_FILE)
-    print('\n', "-"*30)
+    overwrite_file(subset_results, RANDOM_SUBSET_FILE)
 
 
 if __name__ == "__main__":
