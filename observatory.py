@@ -210,11 +210,11 @@ def popular_vs_longtail_data_collection(sites):
     # waiting associated with Observatory's API.
     top_results = {}
     top_group_thread = GetObservatoryDataThread(
-        sites.copy(), SAMPLE_SIZE, "ranking <= 10_000", top_results)
+        sites.copy(), SAMPLE_SIZE_TOP, "ranking <= 10_000", top_results)
 
     longtail_results = {}
     longtail_group_thread = GetObservatoryDataThread(
-        sites.copy(), SAMPLE_SIZE, "ranking > 10_000", longtail_results)
+        sites.copy(), SAMPLE_SIZE_LONGTAIL, "ranking > 10_000", longtail_results)
 
     top_group_thread.start()
     longtail_group_thread.start()
