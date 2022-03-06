@@ -94,8 +94,10 @@ def popular_vs_longtail_analysis():
 
         print(f"Test: {test_name}")
         print(f"\tExpectation: {test_expectation}")
-        print(f"\tTop group frequency: {test_analysis[test_name]['top']} / {len(top_results)}")
-        print(f"\tLongtail group frequency: {test_analysis[test_name]['longtail']} / {len(longtail_results)}")
+        tfreq = 100 * test_analysis[test_name]['top'] / len(top_results)
+        print(f"\tTop group freq:\t\t {tfreq:.2f}% ({test_analysis[test_name]['top']} / {len(top_results)})")
+        lfreq = 100 * test_analysis[test_name]['longtail'] / len(longtail_results)
+        print(f"\tLongtail group freq:\t {lfreq:.2f}% ({test_analysis[test_name]['longtail']} / {len(longtail_results)})")
 
 
 def random_subset_analysis():

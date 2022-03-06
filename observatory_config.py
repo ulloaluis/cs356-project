@@ -29,4 +29,4 @@ RANDOM_SUBSET_FILE = os.path.join(RESULTS_DIRECTORY, "results.json")
 
 # Specify analysis type for observatory.py (data collection)
 # and observatory_analysis.py  (analysis)
-ANALYSIS_TYPE =  AnalysisType.POPULAR_VS_LONGTAIL
+ANALYSIS_TYPE =  AnalysisType.RANDOM_SUBSET
