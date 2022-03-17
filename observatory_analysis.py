@@ -83,7 +83,6 @@ def popular_vs_longtail_analysis():
 
 def random_subset_analysis():
     results = get_results(RANDOM_SUBSET_FILE)
-    print(len(results))
     print(f"Random sample of {SAMPLE_SIZE} from range {RANK_RANGE['min']} - {RANK_RANGE['max']}")
 
     # Correlation
@@ -96,7 +95,7 @@ def random_subset_analysis():
 
     # Performance by different types of servers
     server_to_count = defaultdict(int)
-    server_to_running_score = defaultdict(int)
+    server_to_score = defaultdict(int)
     for domain, data in results.items():
         resp_headers = data['observatory_assessment']['response_headers']
         if 'server' in resp_headers:
@@ -104,20 +103,43 @@ def random_subset_analysis():
         else:
             server = ''
         server_to_count[server] += 1
-        server_to_running_score[server] += data['observatory_assessment']['score']
+        server_to_score[server] += data['observatory_assessment']['score']
     
-    for server, count in server_to_running_score.items():
-        server_to_running_score[server] /= server_to_count[server]
+    for server, count in server_to_score.items():
+        server_to_score[server] /= server_to_count[server]
     
-    sorted_by_freq = sorted(server_to_count.items(), key=lambda item: item[1], reverse=True)
-    for server, freq in sorted_by_freq:
-        score = server_to_running_score[server]
-        # Ignore anything that only shows up once
-        if freq > 5:
-            print(f"{server}: {score:.2f} ({freq})")
+    # Top 10 sorted by frequency (prints 15 for visual inspection)
+    sorted_by_freq = sorted(server_to_count.items(), key=lambda item: item[1], reverse=True)[:15]
+    for i, (server, freq) in enumerate(sorted_by_freq):
+        score = server_to_score[server]
+        print(f"#{i+1:<4} {server:<30} {score:<9.2f} ({freq} freq)")
+    print('-'*20)
 
-    print(server_to_count)
-    print(server_to_running_score)
+    # Top 10 sorted by best avg score (with freq > 5)
+    sorted_by_score = sorted(server_to_score.items(), key=lambda item: item[1], reverse=True)
+    count = 0
+    for i, (server, score) in enumerate(sorted_by_score):
+        freq = server_to_count[server]
+        if freq > 5:
+            count += 1
+            print(f"#{count:<4} {server:<30}: {score:<9.2f} ({freq} freq)")
+        
+        if count == 15:
+            break
+    print('-'*20)
+
+    # Top 10 sorted by worst avg score (with freq > 5)
+    # note: this ended up not being very interesting, except for squarespace.
+    sorted_by_score_worst = sorted(server_to_score.items(), key=lambda item: item[1], reverse=False)
+    count = 0
+    for i, (server, score) in enumerate(sorted_by_score_worst):
+        freq = server_to_count[server]
+        if freq > 5:
+            count += 1
+            print(f"#{count:<4} {server:<30}: {score:<9.2f} ({freq} freq)")
+        
+        if count == 15:
+            break
 
 
 if __name__ == "__main__":
