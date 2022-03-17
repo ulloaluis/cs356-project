@@ -1,7 +1,10 @@
 import json
 
+from collections import defaultdict
 from observatory_config import *
 from scipy import stats
+from utils import *
+import requests
 
 
 def spearman_correlation_analysis(results):
@@ -39,28 +42,6 @@ def average_score_analysis(results):
         running_sum += result["observatory_assessment"]["score"]
     print(f"Average score: {running_sum / count:.3f}")
     print("-"*50, "\n")
-
-
-def debug(data):
-    for domain, result in data.items():
-        print(f"Domain: {domain}")
-        print(f"Score: {result['observatory_assessment']['score']}")        
-        for test, details in result["observatory_tests"].items():
-            print(f"Test: {test}")
-            for k, v in details.items():
-                print(f"\t{k}: {v}")
-            print()
-
-
-def merge_dicts(d1, d2):
-    merged = d1.copy()
-    merged.update(d2)
-    return merged
-
-
-def get_results(filename):
-    with open(filename) as f:
-        return json.load(f)
 
 
 def popular_vs_longtail_analysis():
@@ -102,13 +83,41 @@ def popular_vs_longtail_analysis():
 
 def random_subset_analysis():
     results = get_results(RANDOM_SUBSET_FILE)
+    print(len(results))
     print(f"Random sample of {SAMPLE_SIZE} from range {RANK_RANGE['min']} - {RANK_RANGE['max']}")
 
+    # Correlation
     print("Spearman Correlation Analysis")
     spearman_correlation_analysis(results)
 
+    # Average Score
     print("Average Score Analysis")
     average_score_analysis(results)
+
+    # Performance by different types of servers
+    server_to_count = defaultdict(int)
+    server_to_running_score = defaultdict(int)
+    for domain, data in results.items():
+        resp_headers = data['observatory_assessment']['response_headers']
+        if 'server' in resp_headers:
+            server = resp_headers['server'].lower().strip()
+        else:
+            server = ''
+        server_to_count[server] += 1
+        server_to_running_score[server] += data['observatory_assessment']['score']
+    
+    for server, count in server_to_running_score.items():
+        server_to_running_score[server] /= server_to_count[server]
+    
+    sorted_by_freq = sorted(server_to_count.items(), key=lambda item: item[1], reverse=True)
+    for server, freq in sorted_by_freq:
+        score = server_to_running_score[server]
+        # Ignore anything that only shows up once
+        if freq > 5:
+            print(f"{server}: {score:.2f} ({freq})")
+
+    print(server_to_count)
+    print(server_to_running_score)
 
 
 if __name__ == "__main__":

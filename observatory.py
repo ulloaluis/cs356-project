@@ -19,18 +19,12 @@ import pandas as pd
 
 from io import TextIOWrapper
 from observatory_config import *
+from utils import *
 from zipfile import ZipFile
 
 
 # For reproducibility
 rng = np.random.default_rng(seed=12345)
-
-
-def overwrite_file(results, filename):
-    # Note: directory must already exist!
-    print("Writing to file:", filename)
-    with open(filename, 'w+') as f:
-        json.dump(results, f)
 
 
 def get_test_scan_results(domain, scan_id):
